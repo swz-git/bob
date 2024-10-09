@@ -1,0 +1,15 @@
+[package]
+name = "bob"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ahash = "0.8.11"
+anyhow = "1.0.89"
+clap = { version = "4.5.7", features = ["derive"] }
+ignore = "0.4.23"
+nanoid = "0.4.0"
+rapidhash = "1.1.0"
+serde = { version = "1.0.210", features = ["derive"] }
+tinytemplate = "1.2.1"
+toml = "0.8.19"
