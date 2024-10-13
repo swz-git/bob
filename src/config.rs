@@ -7,7 +7,7 @@ use std::{
 use anyhow::{anyhow, Context};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BobConfig {
     #[serde(default)]
     pub dependencies: Vec<PathBuf>,
@@ -15,24 +15,31 @@ pub struct BobConfig {
     pub build_configs: Vec<BuildConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NuitkaBuildConfig {
-    entry_file: PathBuf,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuildConfig {
+    pub project_name: String,
+    pub bot_configs: Vec<PathBuf>,
+    pub builder_config: BuilderConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RustBuildConfig {
-    cargo_toml_dir: PathBuf,
-    bin_name: String,
-}
-
-#[serde(tag = "type")]
-#[derive(Debug, Serialize, Deserialize)]
-pub enum BuildConfig {
+#[serde(tag = "builder_type")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BuilderConfig {
     #[serde(rename = "nuitka")]
     Nuitka(NuitkaBuildConfig),
     #[serde(rename = "rust")]
     Rust(RustBuildConfig),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NuitkaBuildConfig {
+    entry_file: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RustBuildConfig {
+    bin_name: String,
+    targets: Vec<String>,
 }
 
 impl std::str::FromStr for BobConfig {
@@ -42,33 +49,35 @@ impl std::str::FromStr for BobConfig {
     }
 }
 
-fn read_build_configs_recursive(
-    config_path: PathBuf,
-    configs: &mut Vec<(PathBuf, BuildConfig)>,
-) -> anyhow::Result<()> {
-    let str_content = fs::read_to_string(&config_path).context(format!(
-        "reading bob config at {:?}",
-        config_path.canonicalize()?
-    ))?;
-    let config = BobConfig::from_str(&str_content).context("parsing bob config")?;
-    let dep_paths: Vec<_> = config
-        .dependencies
-        .iter()
-        .map(|x| config_path.parent().unwrap().to_owned().join(x))
-        .collect();
-    for build_config in config.build_configs {
-        configs.push((config_path.clone(), build_config));
-    }
-    for dep in dep_paths {
-        read_build_configs_recursive(dep, configs)?
-    }
-    Ok(())
-}
-
 pub fn read_build_configs(
     root_config_path: PathBuf,
 ) -> anyhow::Result<Vec<(PathBuf, BuildConfig)>> {
+    fn recurse(
+        config_path: PathBuf,
+        configs: &mut Vec<(PathBuf, BuildConfig)>,
+    ) -> anyhow::Result<()> {
+        let canonical_config_path = config_path.canonicalize()?;
+
+        let str_content = fs::read_to_string(&config_path)
+            .context(format!("reading bob config at {:?}", canonical_config_path))?;
+        let config = BobConfig::from_str(&str_content)
+            .context(format!("parsing bob config at {:?}", canonical_config_path))?;
+
+        let dep_paths: Vec<_> = config
+            .dependencies
+            .iter()
+            .map(|x| config_path.parent().unwrap().to_owned().join(x))
+            .collect();
+        for build_config in config.build_configs {
+            configs.push((config_path.clone(), build_config));
+        }
+        for dep in dep_paths {
+            recurse(dep, configs)?
+        }
+        Ok(())
+    }
+
     let mut configs: Vec<(PathBuf, BuildConfig)> = vec![];
-    read_build_configs_recursive(root_config_path, &mut configs)?;
+    recurse(root_config_path, &mut configs)?;
     Ok(configs)
 }

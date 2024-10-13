@@ -9,14 +9,14 @@ use std::{
     process,
 };
 
-use crate::config::BuildConfig;
+use crate::config::{BuildConfig, BuilderConfig};
 
-fn generate_dockerfile(build_config: &BuildConfig) -> anyhow::Result<String> {
+fn generate_dockerfile(build_config: &BuilderConfig) -> anyhow::Result<String> {
     let mut tt = tinytemplate::TinyTemplate::new();
     Ok(match build_config {
-        BuildConfig::Nuitka(bc) => todo!(),
-        BuildConfig::Rust(bc) => {
-            tt.add_template("x", include_str!("../dockerfiles/rust.Dockerfile"))?;
+        BuilderConfig::Nuitka(bc) => todo!(),
+        BuilderConfig::Rust(bc) => {
+            tt.add_template("x", include_str!("../../dockerfiles/rust.Dockerfile"))?;
             tt.render("x", bc)?
         }
     })
@@ -52,22 +52,20 @@ fn dirhasher(dir: PathBuf) -> anyhow::Result<u64> {
 }
 
 pub struct BuildResult {
-    pub binary: Vec<u8>,
+    pub tar_binary: Vec<u8>,
     pub dir_hash: u64,
 }
 
 // Returns Ok(None) if hash matches
 pub fn build(
-    toml_path: PathBuf,
-    build_config: BuildConfig,
+    project_root: PathBuf,
+    build_config: &BuildConfig,
     prev_hash: Option<u64>,
 ) -> anyhow::Result<Option<BuildResult>> {
-    let project_root = toml_path
-        .parent()
-        .ok_or(anyhow!("couldn't get parent dir of bob config"))?
-        .canonicalize()?;
+    let project_root = project_root.canonicalize()?;
 
-    let dockerfile_content = generate_dockerfile(&build_config).context("generating dockerfile")?;
+    let dockerfile_content =
+        generate_dockerfile(&build_config.builder_config).context("generating dockerfile")?;
     let tempfile_path = env::temp_dir().join(format!("Dockerfile-{}", nanoid!()));
 
     let mut tempfile = fs::File::create_new(&tempfile_path)?;
@@ -84,7 +82,7 @@ pub fn build(
 
     let docker_tag = format!("bob_build:{:x}", hash);
 
-    process::Command::new("docker")
+    let build_status_code = process::Command::new("docker")
         .args(&[
             "build",
             "-f",
@@ -98,6 +96,13 @@ pub fn build(
         .current_dir(&project_root)
         .status()?;
 
+    if !build_status_code.success() {
+        return Err(anyhow!(
+            "Docker build failed for bob project {:?}",
+            build_config.project_name
+        ));
+    }
+
     let bin = process::Command::new("docker")
         .args(&["run", "--rm", &docker_tag])
         .stderr(process::Stdio::inherit())
@@ -105,8 +110,10 @@ pub fn build(
         .output()?
         .stdout;
 
+    fs::remove_file(tempfile_path).context("removing tmp dockerfile")?;
+
     Ok(Some(BuildResult {
-        binary: bin,
+        tar_binary: bin,
         dir_hash: hash,
     }))
 
