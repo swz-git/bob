@@ -8,7 +8,8 @@ Bob builds RLBots for the botpack
 
 ## High priority todo:
 
-* Make docker container output tar of build artifacts
-* Clean up toml stuff
+* Make sure nexto works
+* Better logging
+* Check out podman
 * Cache hashes
 * CLI with clap
