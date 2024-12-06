@@ -25,14 +25,14 @@ pub struct BuildConfig {
 #[serde(tag = "builder_type")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BuilderConfig {
-    #[serde(rename = "nuitka")]
-    Nuitka(NuitkaBuildConfig),
+    #[serde(rename = "pyinstaller")]
+    PyInstaller(PyInstallerBuildConfig),
     #[serde(rename = "rust")]
     Rust(RustBuildConfig),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NuitkaBuildConfig {
+pub struct PyInstallerBuildConfig {
     entry_file: PathBuf,
 }
 

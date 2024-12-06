@@ -10,6 +10,7 @@ chrono = "0.4.38"
 clap = { version = "4.5.7", features = ["derive"] }
 ignore = "0.4.23"
 infer = "0.16.0"
+log = "0.4.22"
 nanoid = "0.4.0"
 rapidhash = "1.1.0"
 serde = { version = "1.0.210", features = ["derive"] }

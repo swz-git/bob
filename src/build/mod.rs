@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     fs,
     io::{Cursor, Read as _, Write as _},
     path::{Path, PathBuf},
@@ -58,6 +59,9 @@ pub fn build(build_command: BuildCommand) -> anyhow::Result<()> {
         fs::create_dir_all(&proj_build_root_dir)
             .context("Couldn't create project dir for bob_build")?;
 
+        // fs::File::create(proj_build_root_dir.join("raw.tar"))?
+        //     .write_all(&bin_build_result.tar_binary)?;
+
         let (windows_binary_path, linux_binary_path) =
             build_bot_bins(bin_build_result.tar_binary, &proj_build_root_dir)?;
 
@@ -98,6 +102,9 @@ fn build_bot_bins(
         .context("Couldn't build entries in built tar file")?
     {
         let entry = entry.context("Couldn't read entry in built tar file")?;
+        if entry.header().entry_type().is_dir() {
+            continue;
+        }
         let entry_path = entry
             .path()
             .context("Couldn't read path of entry in built tar file")?
@@ -110,14 +117,18 @@ fn build_bot_bins(
         match (
             infer::get(&bytes).map(|x| x.mime_type()),
             entry_path
-                .extension()
+                .file_name()
                 .map(|x| x.to_str())
-                .unwrap_or(Some("")),
+                .flatten()
+                .unwrap_or("")
+                .to_owned(),
         ) {
-            (Some("application/vnd.microsoft.portable-executable"), Some("exe")) => {
+            (Some("application/vnd.microsoft.portable-executable"), file_name)
+                if file_name.ends_with(".exe") =>
+            {
                 windows_binary_path = Some(path_in_build.clone())
             }
-            (Some("application/x-executable"), _) => {
+            (Some("application/x-executable"), file_name) if !file_name.starts_with("lib") => {
                 linux_binary_path = Some(path_in_build.clone())
             }
             _ => {}

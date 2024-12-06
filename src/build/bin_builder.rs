@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context};
+use log::warn;
 use nanoid::nanoid;
 use rapidhash::RapidInlineHasher;
 use std::hash::{BuildHasher, Hash, Hasher};
@@ -14,7 +15,13 @@ use crate::config::{BuildConfig, BuilderConfig};
 fn generate_dockerfile(build_config: &BuilderConfig) -> anyhow::Result<String> {
     let mut tt = tinytemplate::TinyTemplate::new();
     Ok(match build_config {
-        BuilderConfig::Nuitka(bc) => todo!(),
+        BuilderConfig::PyInstaller(bc) => {
+            tt.add_template(
+                "x",
+                include_str!("../../dockerfiles/pyinstaller.Dockerfile"),
+            )?;
+            tt.render("x", bc)?
+        }
         BuilderConfig::Rust(bc) => {
             tt.add_template("x", include_str!("../../dockerfiles/rust.Dockerfile"))?;
             tt.render("x", bc)?
@@ -109,6 +116,16 @@ pub fn build(
         .current_dir(&project_root)
         .output()?
         .stdout;
+
+    // let docker_rm_status_code = process::Command::new("docker")
+    //     .args(&["image", "rm", &docker_tag])
+    //     .stdout(process::Stdio::inherit())
+    //     .stderr(process::Stdio::inherit())
+    //     .status()?;
+
+    // if !docker_rm_status_code.success() {
+    //     warn!("Couldn't remove docker image {:?}", docker_tag)
+    // }
 
     fs::remove_file(tempfile_path).context("removing tmp dockerfile")?;
 
