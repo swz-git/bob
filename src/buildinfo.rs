@@ -25,14 +25,14 @@ mod hex_ser {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildInfo {
     pub projects: Vec<Project>,
-    #[serde(with = "toml_datetime_compat")]
-    pub build_date: DateTime<Utc>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
     pub name: String,
     #[serde(with = "hex_ser")]
     pub hash: u64,
+    #[serde(with = "toml_datetime_compat")]
+    pub build_date: DateTime<Utc>,
 }
 
 impl FromStr for BuildInfo {
@@ -49,10 +49,9 @@ impl ToString for BuildInfo {
 }
 
 impl BuildInfo {
-    pub fn new(date: DateTime<Utc>) -> Self {
+    pub fn new() -> Self {
         BuildInfo {
             projects: Default::default(),
-            build_date: date,
         }
     }
 }

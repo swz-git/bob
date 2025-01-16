@@ -12,7 +12,7 @@ RUN apt install -y git libarchive-tools binutils
 WORKDIR "/usr/src/win"
 
 # Install windows python
-RUN wget https://github.com/indygreg/python-build-standalone/releases/download/20241008/cpython-3.11.10+20241008-x86_64-pc-windows-msvc-install_only_stripped.tar.gz -O python.tar.gz
+RUN wget https://github.com/astral-sh/python-build-standalone/releases/download/20250115/cpython-3.12.8+20250115-x86_64-pc-windows-msvc-install_only_stripped.tar.gz -O python.tar.gz
 RUN bsdtar -xf python.tar.gz
 
 # Install windows uv
@@ -24,11 +24,11 @@ RUN wget https://github.com/git-for-windows/git/releases/download/v2.47.1.window
 RUN mkdir git
 RUN bsdtar -xf git.zip --directory git
 
-# Windows prep
+# Linux prep
 WORKDIR "/usr/src/linux"
 
 # Install linux python
-RUN wget https://github.com/indygreg/python-build-standalone/releases/download/20241205/cpython-3.11.11+20241205-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz -O python.tar.gz
+RUN wget https://github.com/astral-sh/python-build-standalone/releases/download/20250115/cpython-3.12.8+20250115-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz -O python.tar.gz
 RUN bsdtar -xf python.tar.gz
 
 # Install linux uv
@@ -41,22 +41,20 @@ RUN mv uv-*/** .
 COPY . /usr/src/botsrc
 WORKDIR "/usr/src/botsrc"
 
-# Install deps for windows
-RUN WINEDEBUG=-all WINEPATH="Z:\\usr\\src\\win\\git\\cmd;Z:\\usr\\src\\win\\python" wine ../win/uv.exe pip install pyinstaller --system --requirement requirements.txt
-# "Compile" for windows
-RUN WINEDEBUG=-all WINEPATH="Z:\\usr\\src\\win\\git\\cmd;Z:\\usr\\src\\win\\python" wine ../win/uvx.exe pyinstaller {entry_file}
+RUN mkdir _BOB_OUT
 
-RUN mv ./dist ./dist-win
+# Install deps for windows
+RUN WINEDEBUG=-all WINEPATH="Z:\\usr\\src\\win\\git\\cmd" wine ../win/uv.exe pip install -p ../win/python pyinstaller --requirement requirements.txt
+# "Compile" for windows
+RUN WINEDEBUG=-all WINEPATH="Z:\\usr\\src\\win\\git\\cmd" wine ../win/uvx.exe -p ../win/python pyinstaller {entry_file}
+
+RUN mv ./dist ./_BOB_OUT/x86_64-pc-windows-msvc
 
 # Install deps for linux
 RUN UV_PYTHON="/usr/src/linux/python" ../linux/uv pip install pyinstaller --system --requirement requirements.txt
 # "Compile" for linux
-RUN UV_PYTHON="/usr/src/linux/python" ../linux/uvx pyinstaller {entry_file}
+RUN UV_PYTHON="/usr/src/linux/python" ../linux/uvx --with-requirements requirements.txt pyinstaller {entry_file}
 
-RUN mv ./dist ./dist-linux
+RUN mv ./dist ./_BOB_OUT/x86_64-unknown-linux-gnu
 
-RUN mkdir _binaries
-RUN mv dist-win _binaries
-RUN mv dist-linux _binaries
-
-CMD ["/bin/bash", "-c", "cd _binaries && bsdtar -cf - *"]
+CMD ["/bin/bash", "-c", "cd _BOB_OUT && bsdtar -cf - *"]

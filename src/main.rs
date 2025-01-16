@@ -38,10 +38,12 @@ enum Command {
 struct BuildCommand {
     config_path: PathBuf,
     #[arg(short, long, default_value = "./bob_build")]
+    /// By default, bob will reuse already-built projects if the project hash matches
     out_dir: PathBuf,
 }
 
 fn main() -> anyhow::Result<()> {
+    env_logger::init();
     let cli = Cli::parse();
     match cli.command {
         Command::Build(x) => build::build(x),
@@ -53,6 +55,9 @@ fn pack(dir: PathBuf) -> anyhow::Result<()> {
     if !fs::exists(&dir)? {
         return Err(anyhow!("Directory doesn't exist"));
     }
+
+    // this is probably gonna be a built in .tar.xz archiver or something similar
+    todo!("packing/unpacking");
 
     Ok(())
 }

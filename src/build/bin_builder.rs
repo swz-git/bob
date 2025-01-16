@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context};
-use log::warn;
+use log::{info, warn};
 use nanoid::nanoid;
 use rapidhash::RapidInlineHasher;
 use std::hash::{BuildHasher, Hash, Hasher};
@@ -81,11 +81,14 @@ pub fn build(
 
     let hash = dirhasher(project_root.clone())?;
 
-    println!("{project_root:?} - hash: {hash:X}");
+    info!("{project_root:?} - hash: {hash:X}");
 
     if Some(hash) == prev_hash {
+        info!("Old hash matched, wont rebuild");
         return Ok(None);
     }
+
+    info!("No hash match, building");
 
     let docker_tag = format!("bob_build:{:x}", hash);
 

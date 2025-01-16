@@ -2,7 +2,9 @@ use std::{
     any::Any,
     fs,
     io::{Cursor, Read as _, Write as _},
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 use crate::{
@@ -11,8 +13,11 @@ use crate::{
     BuildCommand,
 };
 use anyhow::{anyhow, Context as _};
+use log::info;
 
 mod bin_builder;
+
+const BUILDINFO_PATH_RELATIVE: &str = "./buildinfo.toml";
 
 pub fn build(build_command: BuildCommand) -> anyhow::Result<()> {
     if !fs::exists(&build_command.config_path)? {
@@ -21,18 +26,13 @@ pub fn build(build_command: BuildCommand) -> anyhow::Result<()> {
 
     let build_configs = read_build_configs(build_command.config_path.clone())?;
 
-    // Checks if out_dir exists and isn't empty
-    if build_command.out_dir.exists()
-        // Thank you https://stackoverflow.com/a/57501031
-        && !build_command.out_dir
-            .read_dir()
-            .map(|mut i| i.next().is_none())
-            .unwrap_or(false)
-    {
-        return Err(anyhow!("Bob output dir isn't empty"));
-    }
+    // If parsing/reading fails, we just ignore previous build info and remove previous build files
+    let build_info_prev = fs::read_to_string(build_command.out_dir.join(BUILDINFO_PATH_RELATIVE))
+        .ok()
+        .map(|s| BuildInfo::from_str(&s).ok())
+        .flatten();
 
-    let mut build_info = BuildInfo::new(chrono::Local::now().into());
+    let mut build_info = BuildInfo::new();
 
     for (bob_toml_path, build_config) in build_configs {
         let proj_src_root_dir = bob_toml_path
@@ -43,24 +43,46 @@ pub fn build(build_command: BuildCommand) -> anyhow::Result<()> {
             .canonicalize()?;
         drop(bob_toml_path);
 
-        let Some(bin_build_result) =
-            bin_builder::build(proj_src_root_dir.to_owned(), &build_config, None)?
-        else {
-            todo!("already built")
+        let proj_build_root_dir = build_command.out_dir.join(&build_config.project_name);
+
+        let prev_project_info = if proj_build_root_dir.exists() {
+            build_info_prev.as_ref().and_then(|x| {
+                x.projects
+                    .iter()
+                    .find(|x| x.name == build_config.project_name)
+            })
+        } else {
+            None
         };
 
-        let proj_build_root_dir = build_command.out_dir.join(&build_config.project_name);
+        let Some(bin_build_result) = bin_builder::build(
+            proj_src_root_dir.to_owned(),
+            &build_config,
+            prev_project_info.map(|x| x.hash),
+        )?
+        else {
+            let prev_project_info = prev_project_info.unwrap();
+            // Old is good
+            build_info.projects.push(Project {
+                name: build_config.project_name.clone(),
+                hash: prev_project_info.hash,
+                build_date: prev_project_info.build_date,
+            });
+            continue;
+        };
 
         build_info.projects.push(Project {
             name: build_config.project_name.clone(),
             hash: bin_build_result.dir_hash,
+            build_date: chrono::Local::now().into(),
         });
 
+        fs::remove_dir_all(&proj_build_root_dir)
+            .context("Couldn't clear old project dir in bob_build")?;
         fs::create_dir_all(&proj_build_root_dir)
             .context("Couldn't create project dir for bob_build")?;
 
-        // fs::File::create(proj_build_root_dir.join("raw.tar"))?
-        //     .write_all(&bin_build_result.tar_binary)?;
+        info!("Decompressing built binaries...");
 
         let (windows_binary_path, linux_binary_path) =
             build_bot_bins(bin_build_result.tar_binary, &proj_build_root_dir)?;
@@ -85,6 +107,8 @@ pub fn build(build_command: BuildCommand) -> anyhow::Result<()> {
         fs::File::create(build_command.out_dir.join("buildinfo.toml"))?
             .write_all(build_info.to_string().as_bytes())?;
     }
+
+    info!("Copy of buildinfo.toml:\n{}", build_info.to_string().trim());
 
     Ok(())
 }
@@ -112,6 +136,7 @@ fn build_bot_bins(
         let path_in_build = proj_build_root_dir.join(&entry_path);
         fs::create_dir_all(path_in_build.parent().unwrap())
             .context("Couldn't create dir in bob_build")?;
+        let entry_mode = entry.header().mode().unwrap_or_default();
         let bytes = entry.bytes().map(|x| x.unwrap()).collect::<Vec<u8>>();
 
         match (
@@ -128,14 +153,20 @@ fn build_bot_bins(
             {
                 windows_binary_path = Some(path_in_build.clone())
             }
-            (Some("application/x-executable"), file_name) if !file_name.starts_with("lib") => {
+            (Some("application/x-executable"), file_name)
+                if !file_name.starts_with("lib") && !file_name.ends_with("so") =>
+            {
                 linux_binary_path = Some(path_in_build.clone())
             }
             _ => {}
         }
 
-        fs::File::create_new(path_in_build)?.write_all(&bytes)?;
+        let mut created_file = fs::File::create_new(path_in_build)?;
+
+        created_file.set_permissions(fs::Permissions::from_mode(entry_mode))?;
+        created_file.write_all(&bytes)?;
     }
+
     Ok((windows_binary_path, linux_binary_path))
 }
 
