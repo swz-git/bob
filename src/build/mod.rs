@@ -75,8 +75,11 @@ pub fn build(build_command: BuildCommand) -> anyhow::Result<()> {
             build_date: chrono::Local::now().into(),
         });
 
-        fs::remove_dir_all(&proj_build_root_dir)
-            .context("Couldn't clear old project dir in bob_build")?;
+        if let Err(e) = fs::remove_dir_all(&proj_build_root_dir) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                return Err(e).context("Couldn't clear old project dir in bob_build");
+            }
+        };
         fs::create_dir_all(&proj_build_root_dir)
             .context("Couldn't create project dir for bob_build")?;
 
@@ -107,6 +110,7 @@ pub fn build(build_command: BuildCommand) -> anyhow::Result<()> {
     }
 
     info!("Copy of buildinfo.toml:\n{}", build_info.to_string().trim());
+    info!("Done!");
 
     Ok(())
 }
