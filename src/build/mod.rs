@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     fs,
     io::{Cursor, Read as _, Write as _},
     os::unix::fs::PermissionsExt,
@@ -29,8 +28,7 @@ pub fn build(build_command: BuildCommand) -> anyhow::Result<()> {
     // If parsing/reading fails, we just ignore previous build info and remove previous build files
     let build_info_prev = fs::read_to_string(build_command.out_dir.join(BUILDINFO_PATH_RELATIVE))
         .ok()
-        .map(|s| BuildInfo::from_str(&s).ok())
-        .flatten();
+        .and_then(|s| BuildInfo::from_str(&s).ok());
 
     let mut build_info = BuildInfo::new();
 
@@ -143,8 +141,7 @@ fn build_bot_bins(
             infer::get(&bytes).map(|x| x.mime_type()),
             entry_path
                 .file_name()
-                .map(|x| x.to_str())
-                .flatten()
+                .and_then(|x| x.to_str())
                 .unwrap_or("")
                 .to_owned(),
         ) {
@@ -190,7 +187,7 @@ fn build_bot_tomls(
             ));
         }
         let str_contents =
-            fs::read_to_string(&bot_toml_path).context(format!("reading {:?}", bot_toml_path))?;
+            fs::read_to_string(bot_toml_path).context(format!("reading {:?}", bot_toml_path))?;
         let mut toml_bot_config: toml::Table = toml::from_str(&str_contents)?;
 
         let settings_table: &mut toml::Table = toml_bot_config

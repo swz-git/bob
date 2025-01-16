@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Context};
-use log::{info, warn};
+use log::info;
 use nanoid::nanoid;
 use rapidhash::RapidInlineHasher;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::{
     env, fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process,
 };
 
@@ -93,7 +93,7 @@ pub fn build(
     let docker_tag = format!("bob_build:{:x}", hash);
 
     let build_status_code = process::Command::new("docker")
-        .args(&[
+        .args([
             "build",
             "-f",
             tempfile_path.to_str().unwrap(),
@@ -114,7 +114,7 @@ pub fn build(
     }
 
     let bin = process::Command::new("docker")
-        .args(&["run", "--rm", &docker_tag])
+        .args(["run", "--rm", &docker_tag])
         .stderr(process::Stdio::inherit())
         .current_dir(&project_root)
         .output()?

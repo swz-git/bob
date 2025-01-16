@@ -1,17 +1,10 @@
 use std::{
-    env,
-    ffi::OsStr,
     fs,
-    io::{BufReader, Cursor, Read, Write},
     path::PathBuf,
 };
 
-use anyhow::{anyhow, Context};
-use buildinfo::{BuildInfo, Project};
-use chrono::Local;
+use anyhow::anyhow;
 use clap::{Parser, Subcommand};
-use config::read_build_configs;
-use toml::value::Datetime;
 
 mod build;
 mod buildinfo;

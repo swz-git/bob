@@ -1,10 +1,10 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     str::FromStr,
 };
 
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
