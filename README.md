@@ -9,6 +9,5 @@ Bob builds RLBots for the botpack
 ## High priority todo:
 
 * Make sure nexto works
-* Fix looks.toml and icons
 * Check out podman
 * Good CLI with clap
