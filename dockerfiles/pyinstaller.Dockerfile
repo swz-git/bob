@@ -53,7 +53,7 @@ RUN mv ./dist ./_BOB_OUT/x86_64-pc-windows-msvc
 # Install deps for linux
 RUN UV_PYTHON="/usr/src/linux/python" ../linux/uv pip install pyinstaller --system --requirement requirements.txt
 # "Compile" for linux
-RUN UV_PYTHON="/usr/src/linux/python" ../linux/uvx --with-requirements requirements.txt pyinstaller {entry_file}
+RUN UV_PYTHON="/usr/src/linux/python" ../linux/uvx pyinstaller {entry_file}
 
 RUN mv ./dist ./_BOB_OUT/x86_64-unknown-linux-gnu
 
