@@ -28,7 +28,7 @@ RUN bsdtar -xf git.zip --directory git
 WORKDIR "/usr/src/linux"
 
 # Install linux python
-RUN wget https://github.com/astral-sh/python-build-standalone/releases/download/20250115/cpython-3.12.8+20250115-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz -O python.tar.gz
+RUN wget https://github.com/astral-sh/python-build-standalone/releases/download/20250115/cpython-3.12.8+20250115-x86_64_v2-unknown-linux-gnu-install_only_stripped.tar.gz -O python.tar.gz
 RUN bsdtar -xf python.tar.gz
 
 # Install linux uv
