@@ -4,11 +4,7 @@ use nanoid::nanoid;
 use rapidhash::RapidInlineHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
-use std::{
-    env, fs,
-    path::PathBuf,
-    process,
-};
+use std::{env, fs, path::PathBuf, process};
 
 use crate::config::{BuildConfig, BuilderConfig};
 
