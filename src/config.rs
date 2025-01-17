@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{fs, path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
@@ -22,8 +18,8 @@ pub struct BuildConfig {
     pub builder_config: BuilderConfig,
 }
 
-#[serde(tag = "builder_type")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "builder_type")]
 pub enum BuilderConfig {
     #[serde(rename = "pyinstaller")]
     PyInstaller(PyInstallerBuildConfig),
@@ -63,11 +59,16 @@ pub fn read_build_configs(
         let config = BobConfig::from_str(&str_content)
             .context(format!("parsing bob config at {:?}", canonical_config_path))?;
 
-        let dep_paths: Vec<_> = config
+        let config_path_parent = config_path.parent().unwrap().to_owned();
+        let dep_paths = config
             .dependencies
             .iter()
-            .map(|x| config_path.parent().unwrap().to_owned().join(x))
-            .collect();
+            .flat_map(|sub_path| {
+                glob::glob(config_path_parent.join(sub_path).to_str().unwrap())
+                    .expect("Failed to read glob pattern")
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
         for build_config in config.build_configs {
             configs.push((config_path.clone(), build_config));
         }

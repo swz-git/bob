@@ -240,6 +240,26 @@ fn build_bot_tomls(
             settings_table.remove("run_command_linux");
         }
 
+        let bot_toml_parent = bot_toml_path.parent().unwrap();
+
+        let local_logo_path = match settings_table.get("logo_file") {
+            Some(toml::Value::String(str)) => str,
+            _ => "logo.png",
+        };
+        let logo_path = bot_toml_parent.join(local_logo_path);
+        if logo_path.exists() {
+            fs::copy(&logo_path, proj_build_root_dir.join(local_logo_path))
+                .context(format!("copying logo file {:?}", logo_path))?;
+        }
+
+        if let Some(toml::Value::String(local_loadout_path)) = settings_table.get("loadout_file") {
+            let loadout_path = bot_toml_parent.join(local_loadout_path);
+            if loadout_path.exists() {
+                fs::copy(&loadout_path, proj_build_root_dir.join(local_loadout_path))
+                    .context(format!("copying loadout file {:?}", loadout_path))?;
+            }
+        }
+
         let bot_toml_out_path = proj_build_root_dir.join(
             bot_toml_path
                 .file_name()
