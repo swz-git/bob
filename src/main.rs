@@ -5,7 +5,9 @@ use clap::{Parser, Subcommand};
 
 mod build;
 mod buildinfo;
+mod ci;
 mod config;
+mod diff;
 
 #[derive(Parser)]
 struct Cli {
@@ -20,8 +22,11 @@ enum Command {
     /// Build based on a bob.toml
     Build(BuildCommand),
 
-    /// Package a bob output dir
-    Pack { dir: PathBuf },
+    /// Build incrementally and produce platform-specific tarballs and diffs
+    CI { dir: PathBuf },
+
+    /// Diffing tool for directories, based on qbsdiff
+    Diff { dir: PathBuf },
 }
 
 #[derive(Parser, Debug)]
@@ -36,18 +41,8 @@ fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cli = Cli::parse();
     match cli.command {
-        Command::Build(x) => build::build(x),
-        Command::Pack { dir } => pack(dir),
+        Command::Build(x) => build::command(x),
+        Command::CI { dir } => ci::command(dir),
+        Command::Diff { dir } => diff::command(dir),
     }
-}
-
-fn pack(dir: PathBuf) -> anyhow::Result<()> {
-    if !fs::exists(&dir)? {
-        return Err(anyhow!("Directory doesn't exist"));
-    }
-
-    // this is probably gonna be a built in .tar.xz archiver or something similar
-    todo!("packing/unpacking");
-
-    Ok(())
 }
