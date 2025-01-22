@@ -115,6 +115,7 @@ dependencies = [
  "nanoid",
  "qbsdiff",
  "rapidhash",
+ "rayon",
  "serde",
  "tar",
  "tinytemplate",

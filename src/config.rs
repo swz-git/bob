@@ -67,8 +67,7 @@ pub fn read_build_configs(
                 glob::glob(config_path_parent.join(sub_path).to_str().unwrap())
                     .expect("Failed to read glob pattern")
             })
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+            .collect::<Result<Vec<_>, _>>()?;
         for build_config in config.build_configs {
             configs.push((config_path.clone(), build_config));
         }

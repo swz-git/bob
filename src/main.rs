@@ -1,6 +1,5 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
-use anyhow::anyhow;
 use clap::{Parser, Subcommand};
 
 mod build;
@@ -25,8 +24,10 @@ enum Command {
     /// Build incrementally and produce platform-specific tarballs and diffs
     CI { dir: PathBuf },
 
-    /// Diffing tool for directories, based on qbsdiff
-    Diff { dir: PathBuf },
+    /// Diffing tool for directories, based on qbsdiff. Outputs a diff to stdout
+    Diff { old: PathBuf, new: PathBuf },
+    /// Diffing tool for directories, based on qbsdiff. Reads a diff from stdin and applies it
+    DiffApply { dir: PathBuf },
 }
 
 #[derive(Parser, Debug)]
@@ -43,6 +44,7 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Command::Build(x) => build::command(x),
         Command::CI { dir } => ci::command(dir),
-        Command::Diff { dir } => diff::command(dir),
+        Command::Diff { old, new } => diff::command_diff(old, new),
+        Command::DiffApply { dir } => diff::command_diff_apply(dir),
     }
 }

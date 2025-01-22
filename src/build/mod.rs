@@ -43,22 +43,58 @@ pub fn command(build_command: BuildCommand) -> anyhow::Result<()> {
 
         let proj_build_root_dir = build_command.out_dir.join(&build_config.project_name);
 
-        let prev_project_info = if proj_build_root_dir.exists() {
-            build_info_prev.as_ref().and_then(|x| {
-                x.projects
-                    .iter()
-                    .find(|x| x.name == build_config.project_name)
+        let prev_project_info = proj_build_root_dir
+            .exists()
+            .then(|| {
+                build_info_prev.as_ref().and_then(|x| {
+                    x.projects
+                        .iter()
+                        .find(|x| x.name == build_config.project_name)
+                })
             })
-        } else {
-            None
-        };
+            .flatten();
 
-        let Some(bin_build_result) = bin_builder::build(
+        if let Some(bin_build_result) = bin_builder::build(
             proj_src_root_dir.to_owned(),
             &build_config,
             prev_project_info.map(|x| x.hash),
-        )?
-        else {
+        )? {
+            build_info.projects.push(Project {
+                name: build_config.project_name.clone(),
+                hash: bin_build_result.dir_hash,
+                build_date: chrono::Local::now().into(),
+            });
+
+            if let Err(e) = fs::remove_dir_all(&proj_build_root_dir) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    return Err(e).context("Couldn't clear old project dir in bob_build");
+                }
+            };
+            fs::create_dir_all(&proj_build_root_dir)
+                .context("Couldn't create project dir for bob_build")?;
+
+            info!("Decompressing built binaries...");
+
+            let (windows_binary_path, linux_binary_path) =
+                build_bot_bins(bin_build_result.tar_binary, &proj_build_root_dir)?;
+
+            build_bot_tomls(
+                &build_config
+                    .bot_configs
+                    .iter()
+                    .map(|x| proj_src_root_dir.join(x))
+                    .collect::<Vec<_>>(),
+                &build_config.project_name,
+                &proj_src_root_dir,
+                &proj_build_root_dir,
+                windows_binary_path,
+                linux_binary_path,
+            )
+            .context(format!(
+                "Couldn't build bot tomls for project {}",
+                &build_config.project_name
+            ))?;
+        } else {
             let prev_project_info = prev_project_info.unwrap();
             // Old is good
             build_info.projects.push(Project {
@@ -66,44 +102,7 @@ pub fn command(build_command: BuildCommand) -> anyhow::Result<()> {
                 hash: prev_project_info.hash,
                 build_date: prev_project_info.build_date,
             });
-            continue;
         };
-
-        build_info.projects.push(Project {
-            name: build_config.project_name.clone(),
-            hash: bin_build_result.dir_hash,
-            build_date: chrono::Local::now().into(),
-        });
-
-        if let Err(e) = fs::remove_dir_all(&proj_build_root_dir) {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                return Err(e).context("Couldn't clear old project dir in bob_build");
-            }
-        };
-        fs::create_dir_all(&proj_build_root_dir)
-            .context("Couldn't create project dir for bob_build")?;
-
-        info!("Decompressing built binaries...");
-
-        let (windows_binary_path, linux_binary_path) =
-            build_bot_bins(bin_build_result.tar_binary, &proj_build_root_dir)?;
-
-        build_bot_tomls(
-            &build_config
-                .bot_configs
-                .iter()
-                .map(|x| proj_src_root_dir.join(x))
-                .collect::<Vec<_>>(),
-            &build_config.project_name,
-            &proj_src_root_dir,
-            &proj_build_root_dir,
-            windows_binary_path,
-            linux_binary_path,
-        )
-        .context(format!(
-            "Couldn't build bot tomls for project {}",
-            &build_config.project_name
-        ))?;
 
         fs::File::create(build_command.out_dir.join("buildinfo.toml"))?
             .write_all(build_info.to_string().as_bytes())?;
