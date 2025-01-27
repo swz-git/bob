@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Context};
 use log::info;
-use nanoid::nanoid;
 use rapidhash::RapidInlineHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
+use std::rc::Rc;
 use std::{env, fs, path::PathBuf, process};
 
 use crate::config::{BuildConfig, BuilderConfig};
@@ -59,6 +59,21 @@ pub struct BuildResult {
     pub dir_hash: u64,
 }
 
+mod uid {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    pub static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    pub(super) fn uid() -> Box<str> {
+        format!(
+            "{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::SeqCst)
+        )
+        .into()
+    }
+}
+use uid::uid;
+
 // Returns Ok(None) if hash matches
 pub fn build(
     project_root: PathBuf,
@@ -69,7 +84,7 @@ pub fn build(
 
     let dockerfile_content =
         generate_dockerfile(&build_config.builder_config).context("generating dockerfile")?;
-    let tempfile_path = env::temp_dir().join(format!("Dockerfile-{}", nanoid!()));
+    let tempfile_path = env::temp_dir().join(format!("Dockerfile-{}", uid()));
 
     let mut tempfile = fs::File::create_new(&tempfile_path)?;
     tempfile.write_all(dockerfile_content.as_bytes())?;
