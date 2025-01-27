@@ -16,9 +16,9 @@ use log::info;
 
 mod bin_builder;
 
-const BUILDINFO_PATH_RELATIVE: &str = "./buildinfo.toml";
+pub const BUILDINFO_PATH_RELATIVE: &str = "./buildinfo.toml";
 
-pub fn command(build_command: BuildCommand) -> anyhow::Result<()> {
+pub fn command_build(build_command: BuildCommand) -> anyhow::Result<()> {
     if !fs::exists(&build_command.config_path)? {
         return Err(anyhow!("File doesn't exist"));
     }

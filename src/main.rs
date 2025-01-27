@@ -4,9 +4,9 @@ use clap::{Parser, Subcommand};
 
 mod build;
 mod buildinfo;
-mod ci;
 mod config;
 mod diff;
+mod split;
 
 #[derive(Parser)]
 struct Cli {
@@ -21,8 +21,8 @@ enum Command {
     /// Build based on a bob.toml
     Build(BuildCommand),
 
-    /// Build incrementally and produce platform-specific tarballs and diffs
-    CI { dir: PathBuf },
+    /// Split bob build directory into platform-specific directories
+    Split { dir: PathBuf },
 
     /// Diffing tool for directories, based on qbsdiff. Outputs a diff to stdout
     Diff { old: PathBuf, new: PathBuf },
@@ -42,8 +42,8 @@ fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cli = Cli::parse();
     match cli.command {
-        Command::Build(x) => build::command(x),
-        Command::CI { dir } => ci::command(dir),
+        Command::Build(x) => build::command_build(x),
+        Command::Split { dir } => split::command_split(dir),
         Command::Diff { old, new } => diff::command_diff(old, new),
         Command::DiffApply { dir } => diff::command_diff_apply(dir),
     }

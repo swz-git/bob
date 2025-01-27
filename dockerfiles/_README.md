@@ -2,7 +2,7 @@
 
 All dockerfiles shall output a tar file to stdout with the following file
 structure `/[PLATFORM]/platform_specific_files`. [PLATFORM] ideally being a LLVM
-target triple, but only needs to contain the name of the OS (`linux`/`windows`).
+target triple, but only needs to contain the architecture (`x86`/`x86_64`/`aarch64`) name of the OS (`linux`/`windows`) in that order.
 
 ## Example file structure of the tar file
 
