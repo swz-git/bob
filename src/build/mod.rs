@@ -1,10 +1,12 @@
 use std::{
     fs,
     io::{Cursor, Read as _, Write as _},
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     str::FromStr,
 };
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 use crate::{
     buildinfo::{BuildInfo, Project},
@@ -163,7 +165,9 @@ fn build_bot_bins(
 
         let mut created_file = fs::File::create_new(path_in_build)?;
 
+        #[cfg(unix)]
         created_file.set_permissions(fs::Permissions::from_mode(entry_mode))?;
+
         created_file.write_all(&bytes)?;
     }
 
