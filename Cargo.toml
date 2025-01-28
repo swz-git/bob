@@ -2,6 +2,8 @@
 name = "bob"
 version = "0.1.0"
 edition = "2021"
+license-file = "LICENSE"
+repository = "https://github.com/swz-git/bob"
 
 [profile.release]
 lto = "fat"
