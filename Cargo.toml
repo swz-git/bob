@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license-file = "LICENSE"
 repository = "https://github.com/swz-git/bob"
+description = "Build tool for the rlbot v5 botpack"
 
 [profile.release]
 lto = "fat"
