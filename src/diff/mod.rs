@@ -1,5 +1,4 @@
-// diffing cli tool + built-in library that wraps qbsdiff
-// we might be able to use something that already exists, but it'll need to support diffing of folders
+// custom diffing tool for directories powered by qbsdiff
 
 use anyhow::{anyhow, Context};
 use log::info;
@@ -93,11 +92,9 @@ impl DirDiff {
                     _ => false,
                 }) {
                     unprocessed_entries.remove(i);
-                } else {
-                    if delete_old {
-                        fs::remove_dir_all(&canonical_path)?;
-                        info!("Removed old dir: {relative_path:?}");
-                    }
+                } else if delete_old {
+                    fs::remove_dir_all(&canonical_path)?;
+                    info!("Removed old dir: {relative_path:?}");
                 };
             }
             if path.path().is_file() {
@@ -121,11 +118,9 @@ impl DirDiff {
                         info!("Applied diff: {relative_path:?}");
                         fs::write(&canonical_path, new_file_data)?;
                     }
-                } else {
-                    if delete_old {
-                        info!("Removed old file: {relative_path:?}");
-                        fs::remove_file(&canonical_path)?;
-                    }
+                } else if delete_old {
+                    info!("Removed old file: {relative_path:?}");
+                    fs::remove_file(&canonical_path)?;
                 }
             }
         }
@@ -167,7 +162,7 @@ impl DirDiff {
                     ser.extend_from_slice(path_data.as_bytes());
 
                     ser.extend_from_slice(&(patch.len() as u32).to_be_bytes());
-                    ser.extend_from_slice(&patch);
+                    ser.extend_from_slice(patch);
                 }
                 DirDiffEntry::Dir(path) => {
                     ser.extend_from_slice(b"D");
@@ -181,8 +176,12 @@ impl DirDiff {
         ser
     }
     pub fn deser(serialized: &[u8]) -> anyhow::Result<Self> {
-        if serialized[0..8] != MAGIC_BYTES {
+        if serialized[0..7] != MAGIC_BYTES[0..7] {
             return Err(anyhow!("Invalid magic bytes"));
+        }
+
+        if serialized[7] != MAGIC_BYTES[7] {
+            return Err(anyhow!("Bobdiff version mismatch, cannot parse"));
         }
 
         let mut file_diffs = vec![];
@@ -191,7 +190,7 @@ impl DirDiff {
 
         // start at 1 because version is a single byte
         let mut data_type_buf = [0u8];
-        while let Ok(_) = payload_reader.read_exact(&mut data_type_buf) {
+        while payload_reader.read_exact(&mut data_type_buf).is_ok() {
             let entry_type = data_type_buf[0];
 
             match entry_type {
@@ -245,7 +244,7 @@ pub fn command_diff(old: PathBuf, new: PathBuf) -> anyhow::Result<()> {
     // use the DirDiff struct to diff the directory
     let diff = DirDiff::new(&old, &new);
 
-    stdout().write(&diff.ser())?;
+    stdout().write_all(&diff.ser())?;
 
     Ok(())
 }

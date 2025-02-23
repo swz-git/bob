@@ -86,7 +86,7 @@ pub fn command_build(build_command: BuildCommand) -> anyhow::Result<()> {
                     .iter()
                     .map(|x| proj_src_root_dir.join(x))
                     .collect::<Vec<_>>(),
-                &build_config.project_name,
+                // &build_config.project_name,
                 &proj_src_root_dir,
                 &proj_build_root_dir,
                 windows_binary_path,
@@ -176,7 +176,7 @@ fn build_bot_bins(
 
 fn build_bot_tomls(
     bot_configs: &[PathBuf],
-    proj_name: &str,
+    // proj_name: &str,
     proj_src_root_dir: &Path,
     proj_build_root_dir: &Path,
     windows_binary_path: Option<PathBuf>,

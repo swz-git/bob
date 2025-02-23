@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -42,9 +42,9 @@ impl FromStr for BuildInfo {
         Ok(toml::from_str(s)?)
     }
 }
-impl ToString for BuildInfo {
-    fn to_string(&self) -> String {
-        toml::to_string_pretty(self).unwrap() // this should never fail i think
+impl Display for BuildInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", toml::to_string_pretty(self).unwrap())
     }
 }
 

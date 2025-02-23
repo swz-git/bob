@@ -14,9 +14,9 @@ struct Cli {
     command: Command,
 }
 
-/// Doc comment
+/// Bob is a build tool for the RLBot v5 botpack
 #[derive(Subcommand)]
-#[command()]
+#[command(version, about, long_about = None)]
 enum Command {
     /// Build based on a bob.toml
     Build(BuildCommand),
