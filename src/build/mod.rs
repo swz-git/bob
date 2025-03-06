@@ -219,7 +219,9 @@ fn build_bot_tomls(
                         .as_os_str()
                         .to_str()
                         .unwrap()
-                        .to_owned(),
+                        .to_owned()
+                        .replace("/", "\\\\"),
+                    //  ^ thank you microsoft, great os
                 ),
             );
         } else {
