@@ -1,24 +1,36 @@
-// custom diffing tool for directories powered by qbsdiff
+// custom diffing tool for directories powered by bidiff/bipatch
 
 use anyhow::{anyhow, Context};
-use log::info;
-use qbsdiff::{Bsdiff, Bspatch};
+use log::{error, info};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rkyv::with::AsString;
+use rkyv::{rancor, Archive, Deserialize, Serialize};
 use std::fs;
-use std::io::{stdin, stdout, BufReader, Cursor, Read, Write};
+use std::io::{stdin, stdout, Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 enum DirDiffEntry {
-    File {
+    FileIdentical {
+        #[rkyv(with = AsString)]
         path: PathBuf,
-        /// Some(Vec<u8> of qbsdiff patch) if file
-        /// None if dir
+    },
+    FilePatch {
+        #[rkyv(with = AsString)]
+        path: PathBuf,
+        /// bidiff patch
         patch: Vec<u8>,
     },
-    Dir(PathBuf),
+    FileRaw {
+        #[rkyv(with = AsString)]
+        path: PathBuf,
+        data: Vec<u8>,
+    },
+
+    Dir(#[rkyv(with = AsString)] PathBuf),
 }
 
+#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 pub struct DirDiff {
     entries: Vec<DirDiffEntry>,
 }
@@ -59,12 +71,37 @@ impl DirDiff {
                 };
                 let old_file = fs::read(old_dir.join(&relative_path)).unwrap_or_default();
 
-                let mut patch = Vec::new();
-                Bsdiff::new(&old_file, &new_file)
-                    .compare(&mut patch)
-                    .expect("generating diff failed");
+                if rapidhash::rapidhash(&new_file) == rapidhash::rapidhash(&old_file) {
+                    return Some(DirDiffEntry::FileIdentical {
+                        path: relative_path,
+                    });
+                }
 
-                Some(DirDiffEntry::File {
+                if old_file.len() == 0 {
+                    return Some(DirDiffEntry::FileRaw {
+                        path: relative_path,
+                        data: new_file,
+                    });
+                }
+
+                let mut patch = Vec::new();
+                bidiff::simple_diff_with_params(
+                    &old_file,
+                    &new_file,
+                    &mut patch,
+                    &bidiff::DiffParams::default(),
+                )
+                .expect("generating diff failed");
+
+                // diffs are huge until compressed, so this doesn't work
+                // if patch.len() > new_file.len() {
+                //     return Some(DirDiffEntry::FileRaw {
+                //         path: relative_path,
+                //         data: new_file,
+                //     });
+                // }
+
+                Some(DirDiffEntry::FilePatch {
                     path: relative_path,
                     patch,
                 })
@@ -99,24 +136,40 @@ impl DirDiff {
             }
             if path.path().is_file() {
                 if let Some(i) = unprocessed_entries.iter().position(|entry| match entry {
-                    DirDiffEntry::File { path: p, .. } => p == &relative_path,
+                    DirDiffEntry::FilePatch { path: p, .. }
+                    | DirDiffEntry::FileIdentical { path: p, .. }
+                    | DirDiffEntry::FileRaw { path: p, .. } => p == &relative_path,
                     _ => false,
                 }) {
                     let entry = unprocessed_entries.remove(i);
-                    if let DirDiffEntry::File { patch, .. } = entry {
-                        let old_file_data = match fs::read(&canonical_path) {
-                            Ok(data) => data,
-                            Err(e) if e.kind() == std::io::ErrorKind::NotFound => vec![],
-                            Err(e) => Err(e).context("Error reading file to for diff")?,
-                        };
+                    match entry {
+                        DirDiffEntry::FilePatch { patch, .. } => {
+                            let old_file_data = match fs::read(&canonical_path) {
+                                Ok(data) => data,
+                                Err(e) if e.kind() == std::io::ErrorKind::NotFound => vec![],
+                                Err(e) => Err(e).context("Error reading file to for diff")?,
+                            };
 
-                        let patcher = Bspatch::new(&patch)?;
-                        let mut new_file_data =
-                            Vec::with_capacity(patcher.hint_target_size() as usize);
-                        patcher.apply(&old_file_data, Cursor::new(&mut new_file_data))?;
+                            let mut patcher = bipatch::Reader::new(
+                                Cursor::new(patch),
+                                Cursor::new(old_file_data),
+                            )?;
+                            let mut new_file_data = Vec::new();
+                            patcher
+                                .read_to_end(&mut new_file_data)
+                                .context("Patcher failed")?;
 
-                        info!("Applied diff: {relative_path:?}");
-                        fs::write(&canonical_path, new_file_data)?;
+                            fs::write(&canonical_path, new_file_data)?;
+                            info!("Applied diff (patched): {relative_path:?}");
+                        }
+                        DirDiffEntry::FileRaw { data, .. } => {
+                            fs::write(&canonical_path, data)?;
+                            info!("Applied diff (raw): {relative_path:?}");
+                        }
+                        DirDiffEntry::FileIdentical { .. } => {
+                            info!("Applied diff (identical, unchanged): {relative_path:?}");
+                        }
+                        _ => unreachable!(),
                     }
                 } else if delete_old {
                     info!("Removed old file: {relative_path:?}");
@@ -127,12 +180,12 @@ impl DirDiff {
 
         for entry in unprocessed_entries {
             match entry {
-                DirDiffEntry::File { path, patch } => {
-                    let patcher = Bspatch::new(&patch)?;
-                    let mut new_file_data = Vec::with_capacity(patcher.hint_target_size() as usize);
-                    patcher.apply(&[], Cursor::new(&mut new_file_data))?;
-                    fs::write(dir.join(&path), new_file_data)?;
+                DirDiffEntry::FileRaw { path, data } => {
+                    fs::write(dir.join(&path), data)?;
                     info!("Added new file: {path:?}");
+                }
+                DirDiffEntry::FilePatch { path, .. } | DirDiffEntry::FileIdentical { path, .. } => {
+                    error!("File at path `{path:?}` wasn't found but was supposed to be found, will continue anyway...")
                 }
                 DirDiffEntry::Dir(path) => {
                     fs::create_dir_all(dir.join(&path))?;
@@ -146,33 +199,18 @@ impl DirDiff {
 }
 
 // BOBDIFF + 1 byte for version
-const MAGIC_BYTES: [u8; 8] = [b'B', b'O', b'B', b'D', b'I', b'F', b'F', 0];
+const MAGIC_BYTES: [u8; 8] = [b'B', b'O', b'B', b'D', b'I', b'F', b'F', 1];
 
 impl DirDiff {
     pub fn ser(&self) -> Vec<u8> {
         let mut ser = Vec::new();
         ser.extend_from_slice(&MAGIC_BYTES);
-        for entry in &self.entries {
-            match entry {
-                DirDiffEntry::File { path, patch } => {
-                    ser.extend_from_slice(b"F");
 
-                    let path_data = path.to_string_lossy();
-                    ser.extend_from_slice(&(path_data.len() as u32).to_be_bytes());
-                    ser.extend_from_slice(path_data.as_bytes());
+        let uncompressed_raw = &rkyv::to_bytes::<rancor::Error>(self).unwrap();
+        let compressed_raw = zstd::encode_all(uncompressed_raw.as_slice(), 9).unwrap();
 
-                    ser.extend_from_slice(&(patch.len() as u32).to_be_bytes());
-                    ser.extend_from_slice(patch);
-                }
-                DirDiffEntry::Dir(path) => {
-                    ser.extend_from_slice(b"D");
+        ser.extend_from_slice(&compressed_raw);
 
-                    let path_data = path.to_string_lossy();
-                    ser.extend_from_slice(&(path_data.len() as u32).to_be_bytes());
-                    ser.extend_from_slice(path_data.as_bytes());
-                }
-            }
-        }
         ser
     }
     pub fn deser(serialized: &[u8]) -> anyhow::Result<Self> {
@@ -184,52 +222,10 @@ impl DirDiff {
             return Err(anyhow!("Bobdiff version mismatch, cannot parse"));
         }
 
-        let mut file_diffs = vec![];
+        let uncompressed_raw =
+            zstd::decode_all(&serialized[8..]).context("zstd decompression failed")?;
 
-        let mut payload_reader = BufReader::new(&serialized[8..]);
-
-        // start at 1 because version is a single byte
-        let mut data_type_buf = [0u8];
-        while payload_reader.read_exact(&mut data_type_buf).is_ok() {
-            let entry_type = data_type_buf[0];
-
-            match entry_type {
-                b'F' => {
-                    let mut path_len_buf = [0u8; 4];
-                    payload_reader.read_exact(&mut path_len_buf)?;
-                    let path_len = u32::from_be_bytes(path_len_buf) as usize;
-
-                    let mut path_buf = vec![0u8; path_len];
-                    payload_reader.read_exact(&mut path_buf)?;
-                    let path = PathBuf::from(String::from_utf8(path_buf)?);
-
-                    let mut patch_len_buf = [0u8; 4];
-                    payload_reader.read_exact(&mut patch_len_buf)?;
-                    let patch_len = u32::from_be_bytes(patch_len_buf) as usize;
-
-                    let mut patch = vec![0u8; patch_len];
-                    payload_reader.read_exact(&mut patch)?;
-
-                    file_diffs.push(DirDiffEntry::File { path, patch });
-                }
-                b'D' => {
-                    let mut path_len_buf = [0u8; 4];
-                    payload_reader.read_exact(&mut path_len_buf)?;
-                    let path_len = u32::from_be_bytes(path_len_buf) as usize;
-
-                    let mut path_buf = vec![0u8; path_len];
-                    payload_reader.read_exact(&mut path_buf)?;
-                    let path = PathBuf::from(String::from_utf8(path_buf)?);
-
-                    file_diffs.push(DirDiffEntry::Dir(path));
-                }
-                _ => return Err(anyhow!("Invalid entry type")),
-            }
-        }
-
-        Ok(Self {
-            entries: file_diffs,
-        })
+        Ok(rkyv::from_bytes::<_, rancor::Error>(&uncompressed_raw)?)
     }
 }
 
