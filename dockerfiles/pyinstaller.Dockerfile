@@ -1,4 +1,4 @@
-FROM ghcr.io/virxec/bob-base-images/python-cross:latest
+FROM ghcr.io/virxec/bob-base-images/python-cross:v1
 
 # Linux git is already installed (for pip git dependencies)
 
