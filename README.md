@@ -1,4 +1,4 @@
-# Bob the bot builder 🔨👷‍♂️ (WIP!)
+# Bob the bot builder 🔨👷‍♂️
 
 Bob builds RLBots for the botpack
 
