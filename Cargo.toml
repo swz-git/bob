@@ -1,3 +1,4 @@
 [workspace]
+package.version = "0.2.6"
 members = ["bob-cli", "bob-lib"]
 resolver = "2"

@@ -1,6 +1,6 @@
 [package]
 name = "bob-cli"
-version = "0.2.6"
+version.workspace = true
 edition = "2021"
 license-file = "../LICENSE"
 repository = "https://github.com/swz-git/bob"
