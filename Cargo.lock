@@ -126,12 +126,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
 
 [[package]]
-name = "bob"
+name = "bob-cli"
 version = "0.2.6"
 dependencies = [
  "anyhow",
- "bidiff",
- "bipatch",
+ "bob-lib",
  "chrono",
  "clap",
  "env_logger",
@@ -140,13 +139,25 @@ dependencies = [
  "infer",
  "log",
  "rapidhash",
- "rayon",
- "rkyv",
  "serde",
  "tar",
  "tinytemplate",
  "toml",
  "toml-datetime-compat",
+]
+
+[[package]]
+name = "bob-lib"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bidiff",
+ "bipatch",
+ "ignore",
+ "log",
+ "rapidhash",
+ "rayon",
+ "rkyv",
  "zstd",
 ]
 
@@ -199,25 +210,7 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 name = "bytes"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-<<<<<<< HEAD
 checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
-=======
-checksum = "bdb116a6ef3f6c3698828873ad02c3014b3c85cadb88496095628e3ef1e347f8"
-dependencies = [
- "bzip2-sys",
- "libc",
-]
-
-[[package]]
-name = "bzip2-sys"
-version = "0.1.13+1.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225bff33b2141874fe80d71e07d6eec4f85c5c216453dd96388240f96e1acc14"
-dependencies = [
- "cc",
- "pkg-config",
-]
->>>>>>> origin/master
 
 [[package]]
 name = "cc"
@@ -717,8 +710,6 @@ name = "pkg-config"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
-<<<<<<< HEAD
-=======
 
 [[package]]
 name = "portable-atomic"
@@ -734,7 +725,6 @@ checksum = "d8a2f0d8d040d7848a709caf78912debcc3f33ee4b3cac47d73d1e1069e83507"
 dependencies = [
  "portable-atomic",
 ]
->>>>>>> origin/master
 
 [[package]]
 name = "powerfmt"
@@ -871,7 +861,7 @@ dependencies = [
  "bytecheck",
  "bytes",
  "hashbrown 0.15.2",
- "indexmap 2.7.0",
+ "indexmap 2.8.0",
  "munge",
  "ptr_meta",
  "rancor",

@@ -1,12 +1,12 @@
 // custom diffing tool for directories powered by bidiff/bipatch
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use log::{error, info};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rkyv::with::AsString;
-use rkyv::{rancor, Archive, Deserialize, Serialize};
+use rkyv::{Archive, Deserialize, Serialize, rancor};
 use std::fs;
-use std::io::{stdin, stdout, Cursor, Read, Write};
+use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
@@ -185,7 +185,9 @@ impl DirDiff {
                     info!("Added new file: {path:?}");
                 }
                 DirDiffEntry::FilePatch { path, .. } | DirDiffEntry::FileIdentical { path, .. } => {
-                    error!("File at path `{path:?}` wasn't found but was supposed to be found, will continue anyway...")
+                    error!(
+                        "File at path `{path:?}` wasn't found but was supposed to be found, will continue anyway..."
+                    )
                 }
                 DirDiffEntry::Dir(path) => {
                     fs::create_dir_all(dir.join(&path))?;
@@ -199,7 +201,8 @@ impl DirDiff {
 }
 
 // BOBDIFF + 1 byte for version
-const MAGIC_BYTES: [u8; 8] = [b'B', b'O', b'B', b'D', b'I', b'F', b'F', 1];
+pub const MAGIC_VER: u8 = 1;
+pub const MAGIC_BYTES: [u8; 8] = [b'B', b'O', b'B', b'D', b'I', b'F', b'F', MAGIC_VER];
 
 impl DirDiff {
     pub fn ser(&self) -> Vec<u8> {
@@ -227,34 +230,4 @@ impl DirDiff {
 
         Ok(rkyv::from_bytes::<_, rancor::Error>(&uncompressed_raw)?)
     }
-}
-
-pub fn command_diff(old: PathBuf, new: PathBuf) -> anyhow::Result<()> {
-    if !fs::exists(&old)? {
-        return Err(anyhow!("Directory doesn't exist: {old:?}"));
-    }
-    if !fs::exists(&new)? {
-        return Err(anyhow!("Directory doesn't exist: {new:?}"));
-    }
-
-    // use the DirDiff struct to diff the directory
-    let diff = DirDiff::new(&old, &new);
-
-    stdout().write_all(&diff.ser())?;
-
-    Ok(())
-}
-
-pub fn command_diff_apply(dir: PathBuf) -> anyhow::Result<()> {
-    if !fs::exists(&dir)? {
-        return Err(anyhow!("Directory doesn't exist"));
-    }
-
-    let mut serialized = Vec::new();
-    stdin().read_to_end(&mut serialized)?;
-    let diff = DirDiff::deser(&serialized)?;
-
-    diff.apply_to(&dir, true)?;
-
-    Ok(())
 }
