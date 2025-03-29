@@ -6,6 +6,10 @@ license-file = "../LICENSE"
 repository = "https://github.com/swz-git/bob"
 description = "Build tool for the rlbot v5 botpack"
 
+[[bin]]
+name = "bob"
+path = "src/main.rs"
+
 [profile.release]
 lto = "fat"
 strip = true

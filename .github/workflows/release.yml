@@ -25,3 +25,4 @@ jobs:
           RUSTTARGET: ${{ matrix.target }}
           # EXTRA_FILES: "README.md LICENSE"
           TOOLCHAIN_VERSION: 1.85
+          SRC_DIR: "./bob-cli"
