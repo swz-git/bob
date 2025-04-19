@@ -1,4 +1,4 @@
-FROM rust:1.81-slim
+FROM rust:1-slim
 
 # Allows building for ...-windows-gnu targets
 RUN apt update && apt install -y mingw-w64
