@@ -5,26 +5,31 @@ use log::{error, info};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rkyv::with::AsString;
 use rkyv::{Archive, Deserialize, Serialize, rancor};
-use std::fs;
+use std::fs::{self};
 use std::io::{Cursor, Read};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
+struct FileFlags {
+    /// Only applies to linux
+    executable: bool,
+}
+
+#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
+enum DataState {
+    Identical,
+    Patch(Box<[u8]>),
+    Raw(Box<[u8]>),
+}
+
+#[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 enum DirDiffEntry {
-    FileIdentical {
+    File {
         #[rkyv(with = AsString)]
         path: PathBuf,
-    },
-    FilePatch {
-        #[rkyv(with = AsString)]
-        path: PathBuf,
-        /// bidiff patch
-        patch: Vec<u8>,
-    },
-    FileRaw {
-        #[rkyv(with = AsString)]
-        path: PathBuf,
-        data: Vec<u8>,
+        state: DataState,
+        flags: Option<FileFlags>,
     },
 
     Dir(#[rkyv(with = AsString)] PathBuf),
@@ -37,6 +42,10 @@ pub struct DirDiff {
 
 impl DirDiff {
     // TODO: maybe make this return a Result?
+    /// Diffs generated on windows **may not work properly for linux**.
+    /// This is due to windows not supporting executable flags needed
+    /// on linux, resulting in written binaries without the executable
+    /// flag, meaning you'll have to `chmod +x [YOUR BINARY]` manually.
     pub fn new(old_dir: &Path, new_dir: &Path) -> Self {
         let old_dir = &old_dir.canonicalize().unwrap();
         let new_dir = &new_dir.canonicalize().unwrap();
@@ -64,23 +73,39 @@ impl DirDiff {
                     return None;
                 }
 
-                let new_file = match fs::read(canonical_path) {
+                let new_file = match fs::read(&canonical_path) {
                     Ok(data) => data,
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
                     Err(e) => panic!("Error reading file: {:?}", e),
                 };
                 let old_file = fs::read(old_dir.join(&relative_path)).unwrap_or_default();
 
+                let flags = {
+                    #[cfg(target_family = "unix")]
+                    {
+                        let new_meta = fs::metadata(&canonical_path).unwrap();
+                        Some(FileFlags {
+                            executable: new_meta.permissions().mode() & 0o111 != 0,
+                        })
+                    }
+
+                    #[cfg(not(target_family = "unix"))]
+                    None
+                };
+
                 if rapidhash::rapidhash(&new_file) == rapidhash::rapidhash(&old_file) {
-                    return Some(DirDiffEntry::FileIdentical {
+                    return Some(DirDiffEntry::File {
                         path: relative_path,
+                        state: DataState::Identical,
+                        flags,
                     });
                 }
 
                 if old_file.len() == 0 {
-                    return Some(DirDiffEntry::FileRaw {
+                    return Some(DirDiffEntry::File {
                         path: relative_path,
-                        data: new_file,
+                        state: DataState::Raw(new_file.into()),
+                        flags,
                     });
                 }
 
@@ -101,9 +126,10 @@ impl DirDiff {
                 //     });
                 // }
 
-                Some(DirDiffEntry::FilePatch {
+                Some(DirDiffEntry::File {
                     path: relative_path,
-                    patch,
+                    state: DataState::Patch(patch.into()),
+                    flags,
                 })
             })
             .collect();
@@ -135,19 +161,27 @@ impl DirDiff {
                 };
             }
             if path.path().is_file() {
-                if let Some(i) = unprocessed_entries.iter().position(|entry| match entry {
-                    DirDiffEntry::FilePatch { path: p, .. }
-                    | DirDiffEntry::FileIdentical { path: p, .. }
-                    | DirDiffEntry::FileRaw { path: p, .. } => p == &relative_path,
-                    _ => false,
-                }) {
-                    let entry = unprocessed_entries.remove(i);
-                    match entry {
-                        DirDiffEntry::FilePatch { patch, .. } => {
+                if let Some(i) = unprocessed_entries
+                    .iter_mut()
+                    .position(|entry| match entry {
+                        DirDiffEntry::File { path: p, .. } => p == &relative_path,
+                        _ => false,
+                    })
+                {
+                    let DirDiffEntry::File {
+                        path: _,
+                        state,
+                        flags,
+                    } = unprocessed_entries.remove(i)
+                    else {
+                        unreachable!()
+                    };
+                    match state {
+                        DataState::Patch(patch) => {
                             let old_file_data = match fs::read(&canonical_path) {
                                 Ok(data) => data,
                                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => vec![],
-                                Err(e) => Err(e).context("Error reading file to for diff")?,
+                                Err(e) => Err(e).context("Error reading file to diff")?,
                             };
 
                             let mut patcher = bipatch::Reader::new(
@@ -162,14 +196,27 @@ impl DirDiff {
                             fs::write(&canonical_path, new_file_data)?;
                             info!("Applied diff (patched): {relative_path:?}");
                         }
-                        DirDiffEntry::FileRaw { data, .. } => {
+                        DataState::Raw(data) => {
                             fs::write(&canonical_path, data)?;
                             info!("Applied diff (raw): {relative_path:?}");
                         }
-                        DirDiffEntry::FileIdentical { .. } => {
+                        DataState::Identical => {
                             info!("Applied diff (identical, unchanged): {relative_path:?}");
                         }
-                        _ => unreachable!(),
+                    }
+                    if let Some(x) = flags {
+                        if cfg!(target_family = "unix") {
+                            let mut permissions = fs::metadata(&canonical_path)?.permissions();
+                            permissions.set_mode(if x.executable {
+                                permissions.mode() | 0o111
+                            } else {
+                                permissions.mode() & !0o111
+                            });
+                            fs::set_permissions(&canonical_path, permissions)?;
+                            info!("Applied file flags: {relative_path:?}");
+                        } else {
+                            // we don't care
+                        }
                     }
                 } else if delete_old {
                     info!("Removed old file: {relative_path:?}");
@@ -180,14 +227,34 @@ impl DirDiff {
 
         for entry in unprocessed_entries {
             match entry {
-                DirDiffEntry::FileRaw { path, data } => {
+                DirDiffEntry::File {
+                    path,
+                    state: DataState::Raw(data),
+                    flags,
+                } => {
                     fs::write(dir.join(&path), data)?;
                     info!("Added new file: {path:?}");
+                    if let Some(x) = flags {
+                        if cfg!(target_family = "unix") {
+                            let mut permissions = fs::metadata(&path)?.permissions();
+                            permissions.set_mode(if x.executable {
+                                permissions.mode() | 0o111
+                            } else {
+                                permissions.mode() & !0o111
+                            });
+                            fs::set_permissions(&path, permissions)?;
+                            info!("Applied file flags: {path:?}");
+                        } else {
+                            // we don't care
+                        }
+                    }
                 }
-                DirDiffEntry::FilePatch { path, .. } | DirDiffEntry::FileIdentical { path, .. } => {
-                    error!(
-                        "File at path `{path:?}` wasn't found but was supposed to be found, will continue anyway..."
-                    )
+                DirDiffEntry::File {
+                    path,
+                    state: DataState::Patch(_) | DataState::Identical,
+                    ..
+                } => {
+                    error!("File at path `{path:?}` wasn't found; cannot apply diff. Continuing...")
                 }
                 DirDiffEntry::Dir(path) => {
                     fs::create_dir_all(dir.join(&path))?;
@@ -201,7 +268,7 @@ impl DirDiff {
 }
 
 // BOBDIFF + 1 byte for version
-pub const MAGIC_VER: u8 = 1;
+pub const MAGIC_VER: u8 = 2;
 pub const MAGIC_BYTES: [u8; 8] = [b'B', b'O', b'B', b'D', b'I', b'F', b'F', MAGIC_VER];
 
 impl DirDiff {

@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context};
+use bob_lib::dirhasher;
 use log::info;
-use rapidhash::RapidInlineHasher;
-use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::{env, fs, path::PathBuf, process};
 
@@ -22,35 +21,6 @@ fn generate_dockerfile(build_config: &BuilderConfig) -> anyhow::Result<String> {
             tt.render("x", bc)?
         }
     })
-}
-
-fn dirhasher(dir: PathBuf) -> anyhow::Result<u64> {
-    let dir = dir.canonicalize()?;
-
-    let mut paths = vec![];
-
-    for result in ignore::WalkBuilder::new(&dir)
-        .hidden(true)
-        .git_ignore(true)
-        .build()
-    {
-        let path = result?.into_path();
-        if path.is_file() {
-            paths.push(path)
-        }
-    }
-
-    paths.sort();
-
-    let mut hasher = RapidInlineHasher::default();
-
-    for path in paths {
-        let content = fs::read(&path).context("hasher couldn't read file")?;
-        path.canonicalize()?.strip_prefix(&dir)?.hash(&mut hasher);
-        content.hash(&mut hasher);
-    }
-
-    Ok(hasher.finish())
 }
 
 pub struct BuildResult {

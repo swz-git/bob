@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use bob_lib::dirhasher;
 use clap::{Parser, Subcommand};
 
 mod build;
@@ -28,6 +29,10 @@ enum Command {
     Diff { old: PathBuf, new: PathBuf },
     /// Diffing tool for directories, based on qbsdiff. Reads a diff from stdin and applies it
     DiffApply { dir: PathBuf },
+
+    /// Generate a hash for a directory, the same function is used internally for incremental
+    /// builds.
+    Hash { dir: PathBuf },
 }
 
 #[derive(Parser, Debug)]
@@ -38,6 +43,12 @@ struct BuildCommand {
     out_dir: PathBuf,
 }
 
+fn command_hash(dir: PathBuf) -> anyhow::Result<()> {
+    let hash = dirhasher(dir)?;
+    println!("{hash:016x}");
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let cli = Cli::parse();
@@ -46,5 +57,6 @@ fn main() -> anyhow::Result<()> {
         Command::Split { dir } => split::command_split(dir),
         Command::Diff { old, new } => diff::command_diff(old, new),
         Command::DiffApply { dir } => diff::command_diff_apply(dir),
+        Command::Hash { dir } => command_hash(dir),
     }
 }
