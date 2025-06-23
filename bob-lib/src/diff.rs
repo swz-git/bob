@@ -7,8 +7,10 @@ use rkyv::with::AsString;
 use rkyv::{Archive, Deserialize, Serialize, rancor};
 use std::fs::{self};
 use std::io::{Cursor, Read};
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
 
 #[derive(Debug, PartialEq, Archive, Deserialize, Serialize)]
 struct FileFlags {
@@ -205,7 +207,8 @@ impl DirDiff {
                         }
                     }
                     if let Some(x) = flags {
-                        if cfg!(target_family = "unix") {
+                        #[cfg(target_family = "unix")]
+                        {
                             let mut permissions = fs::metadata(&canonical_path)?.permissions();
                             permissions.set_mode(if x.executable {
                                 permissions.mode() | 0o111
@@ -214,8 +217,6 @@ impl DirDiff {
                             });
                             fs::set_permissions(&canonical_path, permissions)?;
                             info!("Applied file flags: {relative_path:?}");
-                        } else {
-                            // we don't care
                         }
                     }
                 } else if delete_old {
@@ -235,7 +236,8 @@ impl DirDiff {
                     fs::write(dir.join(&path), data)?;
                     info!("Added new file: {path:?}");
                     if let Some(x) = flags {
-                        if cfg!(target_family = "unix") {
+                        #[cfg(target_family = "unix")]
+                        {
                             let mut permissions = fs::metadata(&path)?.permissions();
                             permissions.set_mode(if x.executable {
                                 permissions.mode() | 0o111
@@ -244,8 +246,6 @@ impl DirDiff {
                             });
                             fs::set_permissions(&path, permissions)?;
                             info!("Applied file flags: {path:?}");
-                        } else {
-                            // we don't care
                         }
                     }
                 }
