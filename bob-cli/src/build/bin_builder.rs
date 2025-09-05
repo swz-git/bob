@@ -2,25 +2,26 @@ use anyhow::{anyhow, Context};
 use bob_lib::dirhasher;
 use log::info;
 use std::io::Write;
+use std::path::Path;
 use std::{env, fs, path::PathBuf, process};
 
-use crate::config::{BuildConfig, BuilderConfig};
+use crate::config::{BobConfig, BuilderConfigVariant};
 
-fn generate_dockerfile(build_config: &BuilderConfig) -> anyhow::Result<String> {
+fn generate_dockerfile(
+    variant: &BuilderConfigVariant,
+    project_root: &Path,
+) -> anyhow::Result<String> {
     let mut tt = tinytemplate::TinyTemplate::new();
-    Ok(match build_config {
-        BuilderConfig::PyInstaller(bc) => {
-            tt.add_template(
-                "x",
-                include_str!("../../dockerfiles/pyinstaller.Dockerfile"),
-            )?;
-            tt.render("x", bc)?
+    let generic = variant.get_inner_as_generic();
+    let contents = generic.get_dockerfile_contents(project_root)?;
+    tt.add_template("x", &contents)
+        .context("Dockerfile was not a valid tinytemplate")?;
+    match variant {
+        BuilderConfigVariant::Custom(custom) => {
+            return tt.render("x", &custom.values).map_err(Into::into)
         }
-        BuilderConfig::Rust(bc) => {
-            tt.add_template("x", include_str!("../../dockerfiles/rust.Dockerfile"))?;
-            tt.render("x", bc)?
-        }
-    })
+        _ => tt.render("x", &generic).map_err(Into::into),
+    }
 }
 
 pub struct BuildResult {
@@ -46,13 +47,13 @@ use uid::uid;
 // Returns Ok(None) if hash matches
 pub fn build(
     project_root: PathBuf,
-    build_config: &BuildConfig,
+    build_config: &BobConfig,
     prev_hash: Option<u64>,
 ) -> anyhow::Result<Option<BuildResult>> {
     let project_root = project_root.canonicalize()?;
 
-    let dockerfile_content =
-        generate_dockerfile(&build_config.builder_config).context("generating dockerfile")?;
+    let dockerfile_content = generate_dockerfile(&build_config.builder_config, &project_root)
+        .context("Generating dockerfile")?;
     let tempfile_path = env::temp_dir().join(format!("Dockerfile-{}", uid()));
 
     let mut tempfile = fs::File::create_new(&tempfile_path)?;

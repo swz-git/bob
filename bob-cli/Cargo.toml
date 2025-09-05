@@ -36,3 +36,5 @@ toml-datetime-compat = { version = "0.3.0", features = [
     "chrono",
     "serde_with",
 ] }
+serde-value = "0.7.0"
+erased-serde = "0.4.6"

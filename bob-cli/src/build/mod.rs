@@ -60,7 +60,10 @@ pub fn command_build(build_command: BuildCommand) -> anyhow::Result<()> {
             proj_src_root_dir.to_owned(),
             &build_config,
             prev_project_info.map(|x| x.hash),
-        )? {
+        )
+        .context(format!(
+            "Failed to build binaries for project with root at {proj_src_root_dir:?}"
+        ))? {
             build_info.projects.push(Project {
                 name: build_config.project_name.clone(),
                 hash: bin_build_result.dir_hash,
@@ -142,6 +145,8 @@ fn build_bot_bins(
         let entry_mode = entry.header().mode().unwrap_or_default();
         let bytes = entry.bytes().map(|x| x.unwrap()).collect::<Vec<u8>>();
 
+        // TODO: A decently big flaw here is that we cannot use shell files as the
+        //       entry point for a bot. Maybe we can add something to bob.toml?
         match (
             infer::get(&bytes).map(|x| x.mime_type()),
             entry_path
