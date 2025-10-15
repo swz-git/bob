@@ -1,11 +1,12 @@
 use std::{
     borrow::Cow,
+    env::consts::{ARCH, OS},
     fs,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,7 +73,11 @@ builder_configs!(
     //   field: Type,
     // },
     PyInstaller "pyinstaller"
-    |_,_| Ok(include_str!("../dockerfiles/pyinstaller.Dockerfile"))
+    |_,_| match (OS, ARCH) {
+        ("linux", "x86_64") => Ok(include_str!("../dockerfiles/pyinstaller/linux-x86_64.Dockerfile")),
+        ("windows", "x86_64") => Ok(include_str!("../dockerfiles/pyinstaller/windows-x86_64.Dockerfile")),
+        (os, arch) => Err(anyhow!("Unsupported OS/architecture \"{os}/{arch}\" for pyinstaller"))
+    }
     => {
         entry_file: PathBuf,
     },

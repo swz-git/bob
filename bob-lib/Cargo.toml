@@ -4,18 +4,13 @@ version.workspace = true
 edition = "2024"
 license-file = "../LICENSE"
 
-[profile.release]
-codegen-units = 1
-lto = true
-strip = true
-
 [dependencies]
 bidiff = "1.0.0"
 bipatch = "1.0.0"
 zstd = { version = "0.13.3", features = ["zstdmt"] }
 rayon = "1.10.0"
 rkyv = "0.8.10"
-rapidhash = "1.1.0"
+rapidhash = "4.1.0"
 anyhow = "1.0.89"
 ignore = "0.4.17"
 log = "0.4.17"

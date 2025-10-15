@@ -9,11 +9,11 @@ use std::{
 use std::os::unix::fs::PermissionsExt;
 
 use crate::{
+    BuildCommand,
     buildinfo::{BuildInfo, Project},
     config::read_build_configs,
-    BuildCommand,
 };
-use anyhow::{anyhow, Context as _};
+use anyhow::{Context as _, anyhow};
 use log::info;
 
 mod bin_builder;
@@ -70,10 +70,10 @@ pub fn command_build(build_command: BuildCommand) -> anyhow::Result<()> {
                 build_date: chrono::Local::now().into(),
             });
 
-            if let Err(e) = fs::remove_dir_all(&proj_build_root_dir) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    return Err(e).context("Couldn't clear old project dir in bob_build");
-                }
+            if let Err(e) = fs::remove_dir_all(&proj_build_root_dir)
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                return Err(e).context("Couldn't clear old project dir in bob_build");
             };
             fs::create_dir_all(&proj_build_root_dir)
                 .context("Couldn't create project dir for bob_build")?;
@@ -143,7 +143,10 @@ fn build_bot_bins(
         fs::create_dir_all(path_in_build.parent().unwrap())
             .context("Couldn't create dir in bob_build")?;
         let entry_mode = entry.header().mode().unwrap_or_default();
-        let bytes = entry.bytes().map(|x| x.unwrap()).collect::<Vec<u8>>();
+
+        // The data is guarenteed to already be in memory, so ignore this warning
+        #[allow(clippy::unbuffered_bytes)]
+        let bytes = entry.bytes().collect::<Result<Vec<u8>, _>>().unwrap();
 
         // TODO: A decently big flaw here is that we cannot use shell files as the
         //       entry point for a bot. Maybe we can add something to bob.toml?
@@ -229,7 +232,7 @@ fn build_bot_tomls(
                     //  ^ thank you microsoft, great os
                 ),
             );
-        } else {
+        } else if cfg!(windows) {
             return Err(anyhow!("No windows binary found for this project"));
         }
 
