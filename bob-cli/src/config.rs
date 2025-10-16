@@ -10,6 +10,12 @@ use anyhow::{Context, anyhow};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DockerFile {
+    pub platforms: Vec<String>,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RootConfig {
     #[serde(default)]
     pub dependencies: Vec<PathBuf>,
@@ -90,7 +96,7 @@ builder_configs!(
     Custom "custom"
     |s,r| {get_custom_dockerfile_contents(s,r)}
     => {
-        pub dockerfile: PathBuf,
+        pub dockerfiles: Vec<DockerFile>,
         pub values: Option<serde_value::Value>,
     }
 );
@@ -99,7 +105,23 @@ fn get_custom_dockerfile_contents(
     s: &builder_configs::Custom,
     project_root: &Path,
 ) -> anyhow::Result<String> {
-    let path = project_root.to_owned().join(&s.dockerfile);
+    let platform_string = format!("{OS}-{ARCH}");
+    let dockerfile = s
+        .dockerfiles
+        .iter()
+        .find_map(|dockerfile| {
+            if dockerfile.platforms.contains(&platform_string) {
+                Some(&dockerfile.path)
+            } else {
+                None
+            }
+        })
+        .context(format!(
+            "couldn't find Dockerfile for {OS}-{ARCH} (project: {})",
+            project_root.display()
+        ))?;
+
+    let path = project_root.to_owned().join(dockerfile);
     fs::read_to_string(&path).context(format!(
         "couldn't read file at custom dockerfile path `{path:?}`"
     ))
