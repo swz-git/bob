@@ -87,6 +87,15 @@ builder_configs!(
     => {
         entry_file: PathBuf,
     },
+    CSharp "csharp"
+    |_,_| match (OS, ARCH) {
+        ("linux", "x86_64") => Ok(include_str!("../dockerfiles/csharp/linux-x86_64.Dockerfile")),
+        // ("windows", "x86_64") => Ok(include_str!("../dockerfiles/csharp/windows-x86_64.Dockerfile")),
+        (os, arch) => Err(anyhow!("Unsupported OS/architecture \"{os}/{arch}\" for csharp"))
+    }
+    => {
+        base_dir: Option<String>,
+    },
     Rust "rust"
     |_,_| Ok(include_str!("../dockerfiles/rust.Dockerfile"))
     => {
