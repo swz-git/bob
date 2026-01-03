@@ -1,8 +1,8 @@
 [package]
 name = "bob-cli"
 version.workspace = true
-edition = "2021"
-license-file = "../LICENSE"
+edition.workspace = true
+license-file.workspace = true
 repository = "https://github.com/swz-git/bob"
 description = "Build tool for the rlbot v5 botpack"
 
@@ -10,31 +10,24 @@ description = "Build tool for the rlbot v5 botpack"
 name = "bob"
 path = "src/main.rs"
 
-[profile.release]
-lto = "fat"
-strip = true
-
-[profile.dev]
-opt-level = 3
-
 [dependencies]
 bob-lib = { path = "../bob-lib" }
-anyhow = "1.0.89"
 chrono = "0.4.38"
 clap = { version = "4.5.7", features = ["derive"] }
 env_logger = "0.11.6"
 glob = "0.3.2"
-ignore = "0.4.23"
-infer = "0.16.0"
-log = "0.4.22"
-rapidhash = "1.1.0"
+infer = "0.19.0"
 serde = { version = "1.0.210", features = ["derive"] }
 tar = "0.4.42"
 tinytemplate = "1.2.1"
-toml = "0.8.19"
+toml = "0.9.10"
 toml-datetime-compat = { version = "0.3.0", features = [
     "chrono",
     "serde_with",
 ] }
 serde-value = "0.7.0"
 erased-serde = "0.4.6"
+rapidhash = { workspace = true }
+anyhow = { workspace = true }
+ignore = { workspace = true }
+log = { workspace = true }

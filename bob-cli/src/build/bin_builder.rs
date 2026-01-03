@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use bob_lib::dirhasher;
 use log::info;
 use std::io::Write;
@@ -17,9 +17,7 @@ fn generate_dockerfile(
     tt.add_template("x", &contents)
         .context("Dockerfile was not a valid tinytemplate")?;
     match variant {
-        BuilderConfigVariant::Custom(custom) => {
-            return tt.render("x", &custom.values).map_err(Into::into)
-        }
+        BuilderConfigVariant::Custom(custom) => tt.render("x", &custom.values).map_err(Into::into),
         _ => tt.render("x", &generic).map_err(Into::into),
     }
 }
