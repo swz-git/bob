@@ -43,11 +43,6 @@ pub struct DirDiff {
 }
 
 impl DirDiff {
-    /// If a file is >= 200MiB, it will always be stored as raw data
-    /// This prevents huge diffs from being generated that are
-    /// larger than the file itself even after compression.
-    const DIFF_MAX_FILE_SIZE: usize = 200 * 1024 * 1024;
-
     // TODO: maybe make this return a Result?
     /// Diffs generated on windows **may not work properly for linux**.
     /// This is due to windows not supporting executable flags needed
@@ -109,16 +104,6 @@ impl DirDiff {
                 }
 
                 if old_file.is_empty() {
-                    return Some(DirDiffEntry::File {
-                        path: relative_path,
-                        state: DataState::Raw(new_file.into()),
-                        flags,
-                    });
-                }
-
-                if old_file.len() > Self::DIFF_MAX_FILE_SIZE
-                    || new_file.len() > Self::DIFF_MAX_FILE_SIZE
-                {
                     return Some(DirDiffEntry::File {
                         path: relative_path,
                         state: DataState::Raw(new_file.into()),
