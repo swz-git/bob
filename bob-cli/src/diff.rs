@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use std::{
     fs,
-    io::{stdin, stdout, Read as _, Write as _},
+    io::{Read as _, Write as _, stdin, stdout},
     path::PathBuf,
 };
 
