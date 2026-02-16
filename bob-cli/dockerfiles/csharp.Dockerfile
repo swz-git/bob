@@ -6,9 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install xwin which "Allows downloading and repacking the MSVC CRT and Windows SDK for cross compilation"
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:$PATH"
-RUN cargo install --locked xwin
+RUN curl -L https://github.com/Jake-Shadle/xwin/releases/download/0.8.0/xwin-0.8.0-x86_64-unknown-linux-musl.tar.gz \
+    | tar -xz -C /tmp \
+    && mv /tmp/xwin-0.8.0-x86_64-unknown-linux-musl/xwin /usr/local/bin/xwin
 
 WORKDIR "/usr/src"
 COPY . .
