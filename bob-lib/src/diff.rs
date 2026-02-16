@@ -2,6 +2,7 @@
 
 use anyhow::{Context, anyhow};
 use log::{error, info};
+use rapidhash::v3::rapidhash_v3;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rkyv::with::AsString;
 use rkyv::{Archive, Deserialize, Serialize, rancor};
@@ -33,7 +34,6 @@ enum DirDiffEntry {
         state: DataState,
         flags: Option<FileFlags>,
     },
-
     Dir(#[rkyv(with = AsString)] PathBuf),
 }
 
@@ -95,7 +95,7 @@ impl DirDiff {
                     None
                 };
 
-                if rapidhash::rapidhash(&new_file) == rapidhash::rapidhash(&old_file) {
+                if rapidhash_v3(&new_file) == rapidhash_v3(&old_file) {
                     return Some(DirDiffEntry::File {
                         path: relative_path,
                         state: DataState::Identical,
@@ -103,7 +103,7 @@ impl DirDiff {
                     });
                 }
 
-                if old_file.len() == 0 {
+                if old_file.is_empty() {
                     return Some(DirDiffEntry::File {
                         path: relative_path,
                         state: DataState::Raw(new_file.into()),

@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use rapidhash::RapidInlineHasher;
+use rapidhash::fast::RapidHasher;
 
 pub(crate) mod diff;
 pub mod bobdiff {
@@ -30,7 +30,7 @@ pub fn dirhasher(dir: PathBuf) -> anyhow::Result<u64> {
 
     paths.sort();
 
-    let mut hasher = RapidInlineHasher::default();
+    let mut hasher = RapidHasher::default();
 
     for path in paths {
         let content = fs::read(&path).context("hasher couldn't read file")?;

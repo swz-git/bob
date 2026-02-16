@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use glob::glob;
 use log::{error, warn};
 use std::fs;
@@ -114,8 +114,7 @@ pub fn command_split(src_dir: PathBuf) -> anyhow::Result<()> {
                 } else {
                     error!(
                         "project {} has no matching native binaries, no fallback glob found platform {}",
-                        project.name,
-                        platform.name
+                        project.name, platform.name
                     );
                     continue; // with other projects, don't halt the entire splitting
                 }

@@ -82,6 +82,11 @@ builder_configs!(
         bin_name: String,
         targets: Vec<String>,
     },
+    CSharp "csharp"
+    |_,_| Ok(include_str!("../dockerfiles/csharp.Dockerfile"))
+    => {
+        base_dir: Option<String>,
+    },
     Custom "custom"
     |s,r| {get_custom_dockerfile_contents(s,r)}
     => {

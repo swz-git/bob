@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 mod hex_ser {
-    use serde::{de::Error, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
 
     pub fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
     where
