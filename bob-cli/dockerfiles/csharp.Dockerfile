@@ -13,7 +13,7 @@ RUN curl -L https://github.com/Jake-Shadle/xwin/releases/download/0.8.0/xwin-0.8
 WORKDIR "/usr/src"
 COPY . .
 
-RUN cd {base_dir}
+WORKDIR "/usr/src/{base_dir}"
 RUN dotnet publish -r linux-x64 -c Release -p:DebugType=None -p:DebugSymbols=false -p:PublishAot=true -o /usr/src/_BOB_OUT/x86_64-linux
 
 # PublishAotCrossXWin uses xwin to enable cross compilation
