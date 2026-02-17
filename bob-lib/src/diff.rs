@@ -238,7 +238,9 @@ impl DirDiff {
                     if let Some(x) = flags {
                         #[cfg(target_family = "unix")]
                         {
-                            let mut permissions = fs::metadata(&path)?.permissions();
+                            let mut permissions = fs::metadata(dir.join(&path))
+                                .context("Couldn't query metadata for new file")?
+                                .permissions();
                             permissions.set_mode(if x.executable {
                                 permissions.mode() | 0o111
                             } else {
