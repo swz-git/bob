@@ -10,9 +10,6 @@ use std::fs::{self};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::thread::available_parallelism;
-use std::time::Instant;
-use zstd::dict::DDict;
-use zstd::zstd_safe::CParameter;
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
@@ -299,7 +296,7 @@ impl DirDiff {
             .expect("couldn't enable multithreading");
 
         encoder
-            .write_all(&uncompressed_raw)
+            .write_all(uncompressed_raw)
             .expect("Couldn't write data to final encoder");
 
         let compressed_raw = encoder
