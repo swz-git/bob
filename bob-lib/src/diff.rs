@@ -254,7 +254,8 @@ impl DirDiff {
                             } else {
                                 permissions.mode() & !0o111
                             });
-                            fs::set_permissions(&path, permissions)?;
+                            fs::set_permissions(dir.join(&path), permissions)
+                                .context("Couldn't apply metadata for new file")?;
                             info!("Applied file flags: {path:?}");
                         }
                     }
