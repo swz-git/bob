@@ -4,6 +4,17 @@ version.workspace = true
 edition.workspace = true
 license-file.workspace = true
 
+[dev-dependencies]
+divan = "0.1.21"
+ureq = "3.2.0"
+tar = "0.4.44"
+xz2 = "0.1.7"
+humansize = "2.1.3"
+
+[[bench]]
+name = "diffing"
+harness = false
+
 [dependencies]
 bidiff = "1.0.0"
 bipatch = "1.0.0"
