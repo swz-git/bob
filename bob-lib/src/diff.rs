@@ -1,4 +1,4 @@
-// custom diffing tool for directories powered by bidiff/bipatch
+// custom diffing tool for directories powered by zstd
 
 use anyhow::{Context, anyhow};
 use log::{error, info};
@@ -7,8 +7,12 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rkyv::with::AsString;
 use rkyv::{Archive, Deserialize, Serialize, rancor};
 use std::fs::{self};
-use std::io::{Cursor, Read};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::thread::available_parallelism;
+use std::time::Instant;
+use zstd::dict::DDict;
+use zstd::zstd_safe::CParameter;
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
@@ -111,22 +115,24 @@ impl DirDiff {
                     });
                 }
 
-                let mut patch = Vec::new();
-                bidiff::simple_diff_with_params(
-                    &old_file,
-                    &new_file,
-                    &mut patch,
-                    &bidiff::DiffParams::default(),
-                )
-                .expect("generating diff failed");
+                // use a negative compression level to avoid actually
+                // compressing the data here, we just want to reference the
+                // previous file (we just want to do the delta part here, and
+                // compress everything together later, during `.ser()` )
+                let level = -5;
 
-                // diffs are huge until compressed, so this doesn't work
-                // if patch.len() > new_file.len() {
-                //     return Some(DirDiffEntry::FileRaw {
-                //         path: relative_path,
-                //         data: new_file,
-                //     });
-                // }
+                let mut encoder =
+                    zstd::Encoder::with_ref_prefix(io::Cursor::new(Vec::new()), level, &old_file)
+                        .expect("Couldn't create encoder");
+
+                encoder
+                    .write_all(&new_file)
+                    .expect("Couldn't write data to encoder");
+
+                let patch = encoder
+                    .finish()
+                    .expect("Couldn't create patch with encoder")
+                    .into_inner();
 
                 Some(DirDiffEntry::File {
                     path: relative_path,
@@ -186,12 +192,14 @@ impl DirDiff {
                                 Err(e) => Err(e).context("Error reading file to diff")?,
                             };
 
-                            let mut patcher = bipatch::Reader::new(
-                                Cursor::new(patch),
-                                Cursor::new(old_file_data),
-                            )?;
+                            let mut decoder = zstd::Decoder::with_ref_prefix(
+                                io::Cursor::new(patch),
+                                &old_file_data,
+                            )
+                            .expect("Couldn't create decoder");
+
                             let mut new_file_data = Vec::new();
-                            patcher
+                            decoder
                                 .read_to_end(&mut new_file_data)
                                 .context("Patcher failed")?;
 
@@ -270,7 +278,7 @@ impl DirDiff {
 }
 
 // BOBDIFF + 1 byte for version
-pub const MAGIC_VER: u8 = 2;
+pub const MAGIC_VER: u8 = 3;
 pub const MAGIC_BYTES: [u8; 8] = [b'B', b'O', b'B', b'D', b'I', b'F', b'F', MAGIC_VER];
 
 impl DirDiff {
@@ -279,11 +287,31 @@ impl DirDiff {
         ser.extend_from_slice(&MAGIC_BYTES);
 
         let uncompressed_raw = &rkyv::to_bytes::<rancor::Error>(self).unwrap();
-        let compressed_raw = zstd::encode_all(uncompressed_raw.as_slice(), 9).unwrap();
+
+        // level 22 here seems to perform better than 19 in terms of both time
+        // and size (~3x)
+        let mut encoder = zstd::Encoder::new(io::Cursor::new(Vec::new()), 22)
+            .expect("Couldn't create final encoder");
+
+        encoder
+            .multithread(available_parallelism().map(|x| x.get()).unwrap_or(4) as u32)
+            .expect("couldn't enable multithreading");
+
+        encoder
+            .write_all(&uncompressed_raw)
+            .expect("Couldn't write data to final encoder");
+
+        let compressed_raw = encoder
+            .finish()
+            .expect("Couldn't compress with final encoder")
+            .into_inner();
 
         ser.extend_from_slice(&compressed_raw);
 
         ser
+    }
+    pub fn check_compat(serialized: &[u8]) -> bool {
+        serialized[0..MAGIC_BYTES.len()] == MAGIC_BYTES
     }
     pub fn deser(serialized: &[u8]) -> anyhow::Result<Self> {
         if serialized[0..7] != MAGIC_BYTES[0..7] {

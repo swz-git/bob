@@ -71,7 +71,7 @@ fn patch_time_r23_r25(bencher: Bencher) {
 
 static mut PATCH_SIZE_R24_R25: usize = 0;
 // Time to generate patch r24-r25
-#[divan::bench(sample_count = 100)]
+#[divan::bench(sample_count = 1)]
 fn patch_time_r24_r25(bencher: Bencher) {
     bencher.bench(|| {
         let size = bob_lib::bobdiff::DirDiff::new(&R24_PATH, &R25_PATH)

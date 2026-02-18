@@ -16,8 +16,6 @@ name = "diffing"
 harness = false
 
 [dependencies]
-bidiff = "1.0.0"
-bipatch = "1.0.0"
 zstd = { version = "0.13.3", features = ["zstdmt"] }
 rayon = "1.10.0"
 rkyv = "0.8.10"
