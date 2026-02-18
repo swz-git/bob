@@ -108,7 +108,7 @@ checksum = "843867be96c8daad0d758b57df9392b6d8d271134fce549de6ce169ff98a92af"
 
 [[package]]
 name = "bob-cli"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bob-lib",
@@ -131,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "bob-lib"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "divan",
