@@ -25,9 +25,9 @@ enum Command {
     /// Split bob build directory into platform-specific directories
     Split { dir: PathBuf },
 
-    /// Diffing tool for directories, based on qbsdiff. Outputs a diff to stdout
+    /// Diffing tool for directories, based on zstd. Outputs a diff to stdout
     Diff { old: PathBuf, new: PathBuf },
-    /// Diffing tool for directories, based on qbsdiff. Reads a diff from stdin and applies it
+    /// Diffing tool for directories, based on zstd. Reads a diff from stdin and applies it
     DiffApply { dir: PathBuf },
 
     /// Generate a hash for a directory, the same function is used internally for incremental
